@@ -36,7 +36,7 @@ param(
     $BuildType = 'dist'
 )
 
-$ErrorActionPreference = "Stop"
+ $ErrorActionPreference = "Stop"
 
 # Colors for output
 function Write-Success { Write-Host $args -ForegroundColor Green }
@@ -51,7 +51,7 @@ Write-Host ""
 Write-Info "Checking dependencies..."
 
 # Check Java
-$javaCmd = Get-Command java -ErrorAction SilentlyContinue
+ $javaCmd = Get-Command java -ErrorAction SilentlyContinue
 if (-not $javaCmd) {
     Write-ErrorMsg "Error: Java is not installed or not in PATH."
     Write-Warning "  Please install JDK 25 using: winget install Microsoft.OpenJDK.25"
@@ -60,21 +60,25 @@ if (-not $javaCmd) {
 }
 
 # Check Java version
-$javaVersionOutput = java -version 2>&1 | Select-Object -First 1
-$javaVersionMatch = $javaVersionOutput -match 'version "(\d+)'
-if ($javaVersionMatch) {
-    $javaVersion = [int]$matches[1]
-    if ($javaVersion -lt 17) {
-        Write-ErrorMsg "Error: Java 17 or later is required. Found Java $javaVersion"
-        exit 1
+$javaVersionOutput = & java -version 2>&1 | ForEach-Object { $_.ToString() } | Select-Object -First 1
+if ($javaVersionOutput) {
+    $javaVersionMatch = $javaVersionOutput -match 'version "(\d+)'
+    if ($javaVersionMatch) {
+        $javaVersion = [int]$matches[1]
+        if ($javaVersion -lt 17) {
+            Write-ErrorMsg "Error: Java 17 or later is required. Found Java $javaVersion"
+            exit 1
+        }
+        Write-Success "[OK] Java JDK found (version $javaVersion)"
+    } else {
+        Write-Warning "[WARN] Could not determine Java version, but continuing..."
     }
-    Write-Success "✓ Java JDK found (version $javaVersion)"
 } else {
-    Write-Warning "⚠ Could not determine Java version, but continuing..."
+    Write-Warning "[WARN] Could not determine Java version, but continuing..."
 }
 
 # Check for javac (JDK compiler)
-$javacCmd = Get-Command javac -ErrorAction SilentlyContinue
+ $javacCmd = Get-Command javac -ErrorAction SilentlyContinue
 if (-not $javacCmd) {
     Write-ErrorMsg "Error: JDK is not fully installed. Only JRE found."
     Write-Warning "  The Java compiler (javac) is missing. Please install the full JDK:"
@@ -83,7 +87,7 @@ if (-not $javacCmd) {
 }
 
 # Handle Java paths with spaces (Gradle requirement)
-$javaHome = $env:JAVA_HOME
+ $javaHome = $env:JAVA_HOME
 if (-not $javaHome) {
     # Try to find JAVA_HOME from java command
     $javaExe = $javaCmd.Source
@@ -91,7 +95,7 @@ if (-not $javaHome) {
 }
 
 if ($javaHome -and $javaHome.Contains(' ')) {
-    Write-Warning "Java path contains spaces: $javaHome"
+    Write-Warning "[WARN] Java path contains spaces: $javaHome"
     Write-Warning "Gradle does not support Java paths with spaces."
     Write-Warning ""
     Write-Warning "Please create a junction (run PowerShell as Administrator):"
@@ -106,17 +110,17 @@ if ($javaHome -and $javaHome.Contains(' ')) {
 # Set Gradle Java home if JAVA_HOME is set
 if ($javaHome) {
     $env:GRADLE_OPTS = "-Dorg.gradle.java.home=$javaHome $env:GRADLE_OPTS"
-    Write-Success "Setting Gradle Java home: $javaHome"
+    Write-Success "[OK] Setting Gradle Java home: $javaHome"
 }
 
 # Check Gradle
-$gradleCmd = ".\gradlew"
+ $gradleCmd = ".\gradlew"
 if (-not (Test-Path "gradlew.bat")) {
     Write-ErrorMsg "Error: Gradle wrapper (gradlew.bat) not found."
     Write-Warning "  Please run this script from the XPipe project root directory."
     exit 1
 }
-Write-Success "✓ Gradle wrapper found"
+Write-Success "[OK] Gradle wrapper found"
 
 Write-Host ""
 
@@ -137,11 +141,11 @@ if ($Clean) {
 
 # Apply code formatting (Spotless)
 Write-Info "Applying code formatting..."
-$spotlessResult = & $gradleCmd spotlessApply --no-daemon 2>&1
+ $spotlessResult = & $gradleCmd spotlessApply --no-daemon 2>&1
 if ($?) {
-    Write-Success "✓ Code formatting applied"
+    Write-Success "[OK] Code formatting applied"
 } else {
-    Write-Warning "⚠ Code formatting check skipped or failed"
+    Write-Warning "[WARN] Code formatting check skipped or failed"
 }
 Write-Host ""
 
@@ -150,19 +154,19 @@ Write-Info "Building Windows executable (this may take a while)..."
 Write-Info "Using standard Gradle '$BuildType' task as documented in CONTRIBUTING.md"
 Write-Host ""
 
-$buildTask = if ($BuildType -eq 'msi') { ":dist:buildMsi" } else { "dist" }
+ $buildTask = if ($BuildType -eq 'msi') { ":dist:buildMsi" } else { "dist" }
 
-$buildResult = & $gradleCmd $buildTask --no-daemon 2>&1
+ $buildResult = & $gradleCmd $buildTask --no-daemon 2>&1
 if (-not $?) {
     Write-ErrorMsg ""
-    Write-ErrorMsg "✗ Build failed"
+    Write-ErrorMsg "[FAIL] Build failed"
     exit 1
 }
 
 Write-Host ""
 Write-Success "=== Build Complete ==="
 Write-Host ""
-Write-Success "✓ Windows build completed successfully!"
+Write-Success "[OK] Windows build completed successfully!"
 Write-Host ""
 Write-Info "Output location:"
 Write-Host "  dist\build\dist\base\"
