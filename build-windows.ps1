@@ -41,7 +41,7 @@ $ErrorActionPreference = "Stop"
 # Colors for output
 function Write-Success { Write-Host $args -ForegroundColor Green }
 function Write-Warning { Write-Host $args -ForegroundColor Yellow }
-function Write-Error { Write-Host $args -ForegroundColor Red }
+function Write-ErrorMsg { Write-Host $args -ForegroundColor Red }
 function Write-Info { Write-Host $args -ForegroundColor Cyan }
 
 Write-Success "=== XPipe Windows 11 Build Script ==="
@@ -53,7 +53,7 @@ Write-Info "Checking dependencies..."
 # Check Java
 $javaCmd = Get-Command java -ErrorAction SilentlyContinue
 if (-not $javaCmd) {
-    Write-Error "Error: Java is not installed or not in PATH."
+    Write-ErrorMsg "Error: Java is not installed or not in PATH."
     Write-Warning "  Please install JDK 25 using: winget install Microsoft.OpenJDK.25"
     Write-Warning "  Or manually add Java to your PATH"
     exit 1
@@ -65,18 +65,19 @@ $javaVersionMatch = $javaVersionOutput -match 'version "(\d+)'
 if ($javaVersionMatch) {
     $javaVersion = [int]$matches[1]
     if ($javaVersion -lt 17) {
-        Write-Error "Error: Java 17 or later is required. Found Java $javaVersion"
+        Write-ErrorMsg "Error: Java 17 or later is required. Found Java $javaVersion"
         exit 1
     }
     Write-Success "✓ Java JDK found (version $javaVersion)"
-} else {
+}
+else {
     Write-Warning "⚠ Could not determine Java version, but continuing..."
 }
 
 # Check for javac (JDK compiler)
 $javacCmd = Get-Command javac -ErrorAction SilentlyContinue
 if (-not $javacCmd) {
-    Write-Error "Error: JDK is not fully installed. Only JRE found."
+    Write-ErrorMsg "Error: JDK is not fully installed. Only JRE found."
     Write-Warning "  The Java compiler (javac) is missing. Please install the full JDK:"
     Write-Warning "  winget install Microsoft.OpenJDK.25"
     exit 1
@@ -112,7 +113,7 @@ if ($javaHome) {
 # Check Gradle
 $gradleCmd = ".\gradlew"
 if (-not (Test-Path "gradlew.bat")) {
-    Write-Error "Error: Gradle wrapper (gradlew.bat) not found."
+    Write-ErrorMsg "Error: Gradle wrapper (gradlew.bat) not found."
     Write-Warning "  Please run this script from the XPipe project root directory."
     exit 1
 }
@@ -127,9 +128,9 @@ Write-Host ""
 # Clean if requested
 if ($Clean) {
     Write-Info "Cleaning previous build..."
-    & $gradleCmd clean --no-daemon
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Clean failed"
+    $cleanResult = & $gradleCmd clean --no-daemon 2>&1
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
+        Write-ErrorMsg "Clean failed"
         exit 1
     }
     Write-Host ""
@@ -138,9 +139,10 @@ if ($Clean) {
 # Apply code formatting (Spotless)
 Write-Info "Applying code formatting..."
 $spotlessResult = & $gradleCmd spotlessApply --no-daemon 2>&1
-if ($LASTEXITCODE -eq 0) {
+if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq $null) {
     Write-Success "✓ Code formatting applied"
-} else {
+}
+else {
     Write-Warning "⚠ Code formatting check skipped or failed"
 }
 Write-Host ""
@@ -152,10 +154,10 @@ Write-Host ""
 
 $buildTask = if ($BuildType -eq 'msi') { ":dist:buildMsi" } else { "dist" }
 
-& $gradleCmd $buildTask --no-daemon
-if ($LASTEXITCODE -ne 0) {
-    Write-Error ""
-    Write-Error "✗ Build failed"
+$buildResult = & $gradleCmd $buildTask --no-daemon 2>&1
+if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
+    Write-ErrorMsg ""
+    Write-ErrorMsg "✗ Build failed"
     exit 1
 }
 
