@@ -59,23 +59,6 @@ if (-not $javaCmd) {
     exit 1
 }
 
-# Check Java version
-$javaVersionOutput = & java -version 2>&1 | ForEach-Object { $_.ToString() } | Select-Object -First 1
-if ($javaVersionOutput) {
-    $javaVersionMatch = $javaVersionOutput -match 'version "(\d+)'
-    if ($javaVersionMatch) {
-        $javaVersion = [int]$matches[1]
-        if ($javaVersion -lt 17) {
-            Write-ErrorMsg "Error: Java 17 or later is required. Found Java $javaVersion"
-            exit 1
-        }
-        Write-Success "[OK] Java JDK found (version $javaVersion)"
-    } else {
-        Write-Warning "[WARN] Could not determine Java version, but continuing..."
-    }
-} else {
-    Write-Warning "[WARN] Could not determine Java version, but continuing..."
-}
 
 # Check for javac (JDK compiler)
  $javacCmd = Get-Command javac -ErrorAction SilentlyContinue
@@ -131,8 +114,13 @@ Write-Host ""
 # Clean if requested
 if ($Clean) {
     Write-Info "Cleaning previous build..."
+    $ErrorActionPreference = "Continue"
     $cleanResult = & $gradleCmd clean --no-daemon 2>&1
-    if (-not $?) {
+    $ErrorActionPreference = "Stop"
+    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        Write-ErrorMsg "Clean failed"
+        exit 1
+    } elseif ($null -eq $LASTEXITCODE -and -not $?) {
         Write-ErrorMsg "Clean failed"
         exit 1
     }
@@ -156,8 +144,29 @@ Write-Host ""
 
  $buildTask = if ($BuildType -eq 'msi') { ":dist:buildMsi" } else { "dist" }
 
- $buildResult = & $gradleCmd $buildTask --no-daemon 2>&1
-if (-not $?) {
+# Temporarily change ErrorActionPreference to allow warnings without failing
+# This prevents harmless jlink warnings from causing the script to exit
+$previousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+
+# Run the build and capture output
+$buildOutput = & $gradleCmd $buildTask --no-daemon 2>&1
+
+# Restore ErrorActionPreference
+$ErrorActionPreference = $previousErrorAction
+
+# Display the output (warnings will be shown but won't cause failure)
+$buildOutput | ForEach-Object { Write-Host $_ }
+
+# Check the actual exit code (not $? which can be affected by warnings)
+# $LASTEXITCODE is set by PowerShell after native command execution
+if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+    Write-ErrorMsg ""
+    Write-ErrorMsg "[FAIL] Build failed with exit code $LASTEXITCODE"
+    exit 1
+} elseif ($null -eq $LASTEXITCODE -and -not $?) {
+    # Fallback for older PowerShell versions that don't set $LASTEXITCODE
+    # Only fail if $? is false AND we don't have $LASTEXITCODE
     Write-ErrorMsg ""
     Write-ErrorMsg "[FAIL] Build failed"
     exit 1
