@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Build script for Windows 11 executable
-# This script builds XPipe for Windows 11 from a Linux environment
+# This script builds XPipe for Windows 11
+# Works on both Windows (Git Bash/MSYS) and Linux environments
 
 set -e  # Exit on error
 
@@ -25,12 +26,51 @@ command_exists() {
 # Check for required dependencies
 echo -e "${YELLOW}Checking dependencies...${NC}"
 
+# Detect if we're on Windows (Git Bash/MSYS)
+IS_WINDOWS=false
+if [[ -n "$MSYSTEM" ]] || [[ -n "$MINGW_PREFIX" ]] || [[ -d "/c/Program Files" ]] || [[ -n "$WINDIR" ]]; then
+    IS_WINDOWS=true
+fi
+
 # Check Java (JDK required, not just JRE)
+# On Windows, try to find Java in common locations if not in PATH
 if ! command_exists java; then
-    echo -e "${RED}Error: Java is not installed. Please install JDK 17 or later.${NC}"
-    echo -e "${YELLOW}  On RHEL/CentOS: sudo yum install java-17-openjdk-devel${NC}"
-    echo -e "${YELLOW}  On Ubuntu/Debian: sudo apt install openjdk-17-jdk${NC}"
-    exit 1
+    if [ "$IS_WINDOWS" = "true" ]; then
+        echo -e "${YELLOW}Java not in PATH, searching Windows installation directories...${NC}"
+        
+        # Common Windows Java installation paths
+        WINDOWS_PATHS=(
+            "/c/Program Files/Microsoft/jdk-"*
+            "/c/Program Files/Eclipse Adoptium/jdk-"*
+            "/c/Program Files/Java/jdk-"*
+            "/c/Program Files (x86)/Java/jdk-"*
+        )
+        
+        JAVA_FOUND=false
+        for java_base in "${WINDOWS_PATHS[@]}"; do
+            # Expand glob pattern
+            for java_dir in $java_base; do
+                if [ -d "$java_dir" ] && [ -f "$java_dir/bin/java.exe" ]; then
+                    export PATH="$java_dir/bin:$PATH"
+                    echo -e "${GREEN}Found Java at: $java_dir${NC}"
+                    JAVA_FOUND=true
+                    break 2
+                fi
+            done
+        done
+        
+        if [ "$JAVA_FOUND" = "false" ]; then
+            echo -e "${RED}Error: Java is not installed or not found.${NC}"
+            echo -e "${YELLOW}  Please install JDK 17+ using: winget install Microsoft.OpenJDK.25${NC}"
+            echo -e "${YELLOW}  Or manually add Java to your PATH${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${RED}Error: Java is not installed. Please install JDK 17 or later.${NC}"
+        echo -e "${YELLOW}  On RHEL/CentOS: sudo yum install java-17-openjdk-devel${NC}"
+        echo -e "${YELLOW}  On Ubuntu/Debian: sudo apt install openjdk-17-jdk${NC}"
+        exit 1
+    fi
 fi
 
 JAVA_VERSION=$(java -version 2>&1 | head -n 1 | cut -d'"' -f2 | sed '/^1\./s///' | cut -d'.' -f1)
@@ -43,9 +83,64 @@ fi
 if ! command_exists javac; then
     echo -e "${RED}Error: JDK is not fully installed. Only JRE found.${NC}"
     echo -e "${YELLOW}  The Java compiler (javac) is missing. Please install the full JDK:${NC}"
-    echo -e "${YELLOW}  On RHEL/CentOS: sudo yum install java-${JAVA_VERSION}-openjdk-devel${NC}"
-    echo -e "${YELLOW}  On Ubuntu/Debian: sudo apt install openjdk-${JAVA_VERSION}-jdk${NC}"
+    if [ "$IS_WINDOWS" = "true" ]; then
+        echo -e "${YELLOW}  On Windows: winget install Microsoft.OpenJDK.25${NC}"
+    else
+        echo -e "${YELLOW}  On RHEL/CentOS: sudo yum install java-${JAVA_VERSION}-openjdk-devel${NC}"
+        echo -e "${YELLOW}  On Ubuntu/Debian: sudo apt install openjdk-${JAVA_VERSION}-jdk${NC}"
+    fi
     exit 1
+fi
+
+# On Windows, handle Java paths with spaces (Gradle requirement)
+if [ "$IS_WINDOWS" = "true" ]; then
+    # Determine current Java home
+    if [ -z "$JAVA_HOME" ]; then
+        JAVA_EXE=$(which java 2>/dev/null || command -v java 2>/dev/null)
+        if [ -n "$JAVA_EXE" ]; then
+            # Resolve symlinks and get real path
+            if [ -L "$JAVA_EXE" ]; then
+                JAVA_EXE=$(readlink -f "$JAVA_EXE" 2>/dev/null || readlink "$JAVA_EXE" 2>/dev/null || echo "$JAVA_EXE")
+            fi
+            # Get JAVA_HOME (parent of bin directory)
+            JAVA_HOME=$(dirname "$(dirname "$JAVA_EXE")")
+        fi
+    fi
+    
+    # Check if JAVA_HOME has spaces
+    if [[ "$JAVA_HOME" == *" "* ]]; then
+        # Try to use symlink if it exists
+        SYMLINK_PATH="/c/jdk-25"
+        if [ -d "$SYMLINK_PATH" ] && [ -f "$SYMLINK_PATH/bin/java.exe" ]; then
+            export JAVA_HOME="$SYMLINK_PATH"
+            export PATH="$SYMLINK_PATH/bin:$PATH"
+            echo -e "${GREEN}Using Java symlink to avoid spaces in path: $SYMLINK_PATH${NC}"
+        else
+            echo -e "${RED}Error: Java path contains spaces, which Gradle does not support.${NC}"
+            echo -e "${YELLOW}  Please create a symlink (run PowerShell as Administrator):${NC}"
+            echo -e "${YELLOW}  New-Item -ItemType Junction -Path \"C:\\jdk-25\" -Target \"$JAVA_HOME\"${NC}"
+            echo -e "${YELLOW}  Or: mklink /J C:\\jdk-25 \"$JAVA_HOME\"${NC}"
+            echo -e "${YELLOW}  Then set: export JAVA_HOME=\"/c/jdk-25\"${NC}"
+            exit 1
+        fi
+    fi
+    
+    # Set Gradle to use JAVA_HOME explicitly (convert to Windows path format)
+    if [ -n "$JAVA_HOME" ]; then
+        # Convert Git Bash path to Windows path format for Gradle
+        if [[ "$JAVA_HOME" == /c/* ]]; then
+            # Convert /c/path to C:\path
+            GRADLE_JAVA_HOME=$(echo "$JAVA_HOME" | sed 's|^/c/|C:|' | sed 's|/|\\|g')
+        elif [[ "$JAVA_HOME" == /cygdrive/* ]]; then
+            # Handle cygwin paths
+            GRADLE_JAVA_HOME=$(cygpath -w "$JAVA_HOME" 2>/dev/null || echo "$JAVA_HOME")
+        else
+            GRADLE_JAVA_HOME="$JAVA_HOME"
+        fi
+        
+        export GRADLE_OPTS="-Dorg.gradle.java.home=$GRADLE_JAVA_HOME ${GRADLE_OPTS}"
+        echo -e "${GREEN}Setting Gradle Java home: $GRADLE_JAVA_HOME${NC}"
+    fi
 fi
 
 echo -e "${GREEN}✓ Java JDK found (version $JAVA_VERSION)${NC}"
@@ -62,9 +157,11 @@ else
     exit 1
 fi
 
-# Check if we're on Linux (for cross-compilation note)
-if [[ "$OSTYPE" != "linux-gnu"* ]]; then
-    echo -e "${YELLOW}Warning: This script is designed for Linux. Cross-compilation to Windows may have limitations.${NC}"
+# Update OS detection message
+if [ "$IS_WINDOWS" = "true" ]; then
+    echo -e "${GREEN}✓ Running on Windows${NC}"
+elif [[ "$OSTYPE" != "linux-gnu"* ]]; then
+    echo -e "${YELLOW}Warning: This script is designed for Linux/Windows. Cross-compilation may have limitations.${NC}"
 fi
 
 # Check for Wine (optional, for MSI building)
