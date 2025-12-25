@@ -128,13 +128,28 @@ if [ "$IS_WINDOWS" = "true" ]; then
     # Set Gradle to use JAVA_HOME explicitly (convert to Windows path format)
     if [ -n "$JAVA_HOME" ]; then
         # Convert Git Bash path to Windows path format for Gradle
-        if [[ "$JAVA_HOME" == /c/* ]]; then
-            # Convert /c/path to C:\path
-            GRADLE_JAVA_HOME=$(echo "$JAVA_HOME" | sed 's|^/c/|C:|' | sed 's|/|\\|g')
+        # Try cygpath first (most reliable on Git Bash/MSYS)
+        if command_exists cygpath; then
+            GRADLE_JAVA_HOME=$(cygpath -w "$JAVA_HOME" 2>/dev/null)
+        elif [[ "$JAVA_HOME" == /c/* ]] || [[ "$JAVA_HOME" == /C/* ]]; then
+            # Convert /c/path to C:\path (handle both /c/ and /C/)
+            # Remove /c/ or /C/ prefix, then replace all / with \
+            PATH_PART="${JAVA_HOME#/[cC]/}"
+            GRADLE_JAVA_HOME="C:\\${PATH_PART//\//\\}"
         elif [[ "$JAVA_HOME" == /cygdrive/* ]]; then
-            # Handle cygwin paths
-            GRADLE_JAVA_HOME=$(cygpath -w "$JAVA_HOME" 2>/dev/null || echo "$JAVA_HOME")
+            # Handle cygwin paths - extract drive letter
+            DRIVE_LETTER=$(echo "$JAVA_HOME" | sed 's|^/cygdrive/\([^/]*\).*|\1|' | tr '[:lower:]' '[:upper:]')
+            PATH_PART="${JAVA_HOME#/cygdrive/$DRIVE_LETTER/}"
+            GRADLE_JAVA_HOME="${DRIVE_LETTER}:\\${PATH_PART//\//\\}"
+        elif [[ "$JAVA_HOME" == [a-zA-Z]:/* ]]; then
+            # Already in Windows format (C:/path), just convert / to \
+            GRADLE_JAVA_HOME="${JAVA_HOME//\//\\}"
         else
+            GRADLE_JAVA_HOME="$JAVA_HOME"
+        fi
+        
+        # Ensure we have a valid path
+        if [ -z "$GRADLE_JAVA_HOME" ]; then
             GRADLE_JAVA_HOME="$JAVA_HOME"
         fi
         
