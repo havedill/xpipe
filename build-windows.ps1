@@ -69,8 +69,7 @@ if ($javaVersionMatch) {
         exit 1
     }
     Write-Success "✓ Java JDK found (version $javaVersion)"
-}
-else {
+} else {
     Write-Warning "⚠ Could not determine Java version, but continuing..."
 }
 
@@ -129,7 +128,7 @@ Write-Host ""
 if ($Clean) {
     Write-Info "Cleaning previous build..."
     $cleanResult = & $gradleCmd clean --no-daemon 2>&1
-    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
+    if (-not $?) {
         Write-ErrorMsg "Clean failed"
         exit 1
     }
@@ -139,10 +138,9 @@ if ($Clean) {
 # Apply code formatting (Spotless)
 Write-Info "Applying code formatting..."
 $spotlessResult = & $gradleCmd spotlessApply --no-daemon 2>&1
-if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq $null) {
+if ($?) {
     Write-Success "✓ Code formatting applied"
-}
-else {
+} else {
     Write-Warning "⚠ Code formatting check skipped or failed"
 }
 Write-Host ""
@@ -155,7 +153,7 @@ Write-Host ""
 $buildTask = if ($BuildType -eq 'msi') { ":dist:buildMsi" } else { "dist" }
 
 $buildResult = & $gradleCmd $buildTask --no-daemon 2>&1
-if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne $null) {
+if (-not $?) {
     Write-ErrorMsg ""
     Write-ErrorMsg "✗ Build failed"
     exit 1
