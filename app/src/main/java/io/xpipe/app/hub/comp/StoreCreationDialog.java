@@ -63,7 +63,8 @@ public class StoreCreationDialog {
                         .getStoreCategoryIfPresent(e.getCategoryUuid())
                         .orElseThrow();
                 PlatformThread.runLaterIfNeeded(() -> {
-                    StoreViewState.get().selectCategoryIntoViewIfNeeded(StoreViewState.get().getCategoryWrapper(cat));
+                    StoreViewState.get()
+                            .selectCategoryIntoViewIfNeeded(StoreViewState.get().getCategoryWrapper(cat));
                 });
 
                 c.accept(e);
@@ -104,7 +105,9 @@ public class StoreCreationDialog {
                             .getStoreCategoryIfPresent(e.getCategoryUuid())
                             .orElseThrow();
                     PlatformThread.runLaterIfNeeded(() -> {
-                        StoreViewState.get().selectCategoryIntoViewIfNeeded(StoreViewState.get().getCategoryWrapper(cat));
+                        StoreViewState.get()
+                                .selectCategoryIntoViewIfNeeded(
+                                        StoreViewState.get().getCategoryWrapper(cat));
                     });
                 }
             } catch (Exception ex) {

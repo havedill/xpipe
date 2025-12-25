@@ -62,6 +62,7 @@ public class StoreEntryWrapper {
     private final Property<DataStore> store = new SimpleObjectProperty<>();
     private final Property<String> information = new SimpleStringProperty();
     private final BooleanProperty perUser = new SimpleBooleanProperty();
+    private final BooleanProperty isShared = new SimpleBooleanProperty();
     private final ObservableValue<String> shownName;
     private final ObservableValue<String> shownSummary;
     private final Property<String> shownInformation;
@@ -195,8 +196,9 @@ public class StoreEntryWrapper {
         readOnly.setValue(entry.isFreeze());
         iconFile.setValue(entry.getEffectiveIconFile());
         busy.setValue(entry.getBusyCounter().get() != 0);
-        deletable.setValue(
-                !(entry.getStore() instanceof LocalStore) && !DataStorage.get().getEffectiveReadOnlyState(entry));
+        deletable.setValue(!entry.isShared()
+                && !(entry.getStore() instanceof LocalStore)
+                && !DataStorage.get().getEffectiveReadOnlyState(entry));
         sessionActive.setValue(entry.getStore() instanceof SingletonSessionStore<?> ss
                 && entry.getStore() instanceof ShellStore
                 && ss.isSessionRunning());
@@ -210,6 +212,7 @@ public class StoreEntryWrapper {
         perUser.setValue(
                 !category.getValue().getRoot().equals(StoreViewState.get().getAllIdentitiesCategory())
                         && entry.isPerUserStore());
+        isShared.setValue(entry.isShared());
         pinToTop.setValue(entry.isPinToTop());
 
         var storeChanged = store.getValue() != entry.getStore();

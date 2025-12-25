@@ -25,12 +25,14 @@ public class WrapperFileSystem implements FileSystem {
     }
 
     @Override
-    public boolean writeInstantIfPossible(FileSystem sourceFs, FilePath sourceFile, FilePath targetFile) throws Exception {
+    public boolean writeInstantIfPossible(FileSystem sourceFs, FilePath sourceFile, FilePath targetFile)
+            throws Exception {
         return fs.writeInstantIfPossible(sourceFs, sourceFile, targetFile);
     }
 
     @Override
-    public boolean readInstantIfPossible(FilePath sourceFile, FileSystem targetFs, FilePath targetFile) throws Exception {
+    public boolean readInstantIfPossible(FilePath sourceFile, FileSystem targetFs, FilePath targetFile)
+            throws Exception {
         return fs.readInstantIfPossible(sourceFile, targetFs, targetFile);
     }
 

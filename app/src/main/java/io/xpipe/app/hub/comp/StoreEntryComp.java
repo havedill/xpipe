@@ -263,6 +263,19 @@ public abstract class StoreEntryComp extends SimpleComp {
         return button;
     }
 
+    protected Comp<?> createSharedIcon() {
+        var button = new IconButtonComp("mdi2l-lock-outline");
+        button.styleClass("shared-icon");
+        button.tooltipKey("sharedConnection");
+        button.apply(struc -> {
+            AppFontSizes.base(struc.get());
+            struc.get().setDisable(true);
+            struc.get().setOpacity(1.0);
+        });
+        button.hide(Bindings.not(getWrapper().getIsShared()));
+        return button;
+    }
+
     protected Comp<?> createPinIcon() {
         var button = new IconButtonComp("mdi2p-pin-outline");
         button.disable(new SimpleBooleanProperty(true));
@@ -419,7 +432,8 @@ public abstract class StoreEntryComp extends SimpleComp {
             }
 
             if (cat == StoreActionCategory.CONFIGURATION
-                    && getWrapper().getEntry().getValidity() != DataStoreEntry.Validity.LOAD_FAILED) {
+                    && getWrapper().getEntry().getValidity() != DataStoreEntry.Validity.LOAD_FAILED
+                    && !getWrapper().getEntry().isShared()) {
                 var rename = new MenuItem(AppI18n.get("rename"), new FontIcon("mdal-edit"));
                 rename.setOnAction(event -> {
                     name.requestFocus();

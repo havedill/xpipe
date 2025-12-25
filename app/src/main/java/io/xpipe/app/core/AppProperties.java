@@ -52,6 +52,7 @@ public class AppProperties {
     boolean logToFile;
     boolean logPlatformDebug;
     String logLevel;
+    Path sharedStoragePath;
 
     public AppProperties(String[] args) {
         var appDir = Path.of(System.getProperty("user.dir")).resolve("app");
@@ -151,6 +152,16 @@ public class AppProperties {
         logLevel = Optional.ofNullable(System.getProperty(AppNames.propertyName("logLevel")))
                 .filter(s -> AppLogs.LOG_LEVELS.contains(s))
                 .orElse("info");
+        sharedStoragePath = Optional.ofNullable(System.getenv("XPIPE_SHARED_STORAGE"))
+                .map(Path::of)
+                .filter(p -> {
+                    try {
+                        return Files.exists(p) && Files.isDirectory(p);
+                    } catch (Exception e) {
+                        return false;
+                    }
+                })
+                .orElse(null);
 
         // We require the user dir from here
         AppDirectoryPermissionsCheck.checkDirectory(dataDir);

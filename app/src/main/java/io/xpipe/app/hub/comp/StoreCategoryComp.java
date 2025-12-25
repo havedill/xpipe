@@ -13,7 +13,9 @@ import io.xpipe.app.prefs.AppPrefs;
 import io.xpipe.app.storage.DataStorage;
 import io.xpipe.app.storage.DataStoreCategory;
 import io.xpipe.app.storage.DataStoreColor;
+import io.xpipe.app.storage.StandardStorage;
 import io.xpipe.app.util.DesktopHelper;
+import io.xpipe.app.util.ThreadHelper;
 import io.xpipe.core.OsType;
 
 import javafx.beans.binding.Bindings;
@@ -231,6 +233,19 @@ public class StoreCategoryComp extends SimpleComp {
             StoreCategoryConfigComp.show(category);
         });
         contextMenu.getItems().add(configure);
+
+        // Add refresh action for Shared category
+        if (category.getCategory().getUuid().equals(DataStorage.SHARED_CONNECTIONS_CATEGORY_UUID)) {
+            var refresh = new MenuItem(AppI18n.get("refreshSharedConnections"), new FontIcon("mdi2r-refresh"));
+            refresh.setOnAction(event -> {
+                ThreadHelper.runAsync(() -> {
+                    if (DataStorage.get() instanceof StandardStorage ss) {
+                        ss.reloadSharedEntries();
+                    }
+                });
+            });
+            contextMenu.getItems().add(refresh);
+        }
 
         var rename = new MenuItem(AppI18n.get("rename"), new FontIcon("mdal-edit"));
         rename.setOnAction(event -> {

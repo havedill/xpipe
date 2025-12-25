@@ -239,8 +239,7 @@ public class StoreViewState {
             e.update();
         });
         var matchingCats = categories.getList().stream()
-                .filter(storeCategoryWrapper ->
-                        storeCategoryWrapper.getRoot().equals(all))
+                .filter(storeCategoryWrapper -> storeCategoryWrapper.getRoot().equals(all))
                 .filter(storeCategoryWrapper -> storeCategoryWrapper.getDirectContainedEntries().getList().stream()
                         .anyMatch(wrapper -> wrapper.matchesFilter(newValue)))
                 .toList();

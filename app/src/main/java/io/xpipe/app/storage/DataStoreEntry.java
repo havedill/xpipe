@@ -88,6 +88,11 @@ public class DataStoreEntry extends StorageElement {
     @NonFinal
     UUID breakOutCategory;
 
+    @Getter
+    @NonFinal
+    @Setter
+    boolean isShared;
+
     private DataStoreEntry(
             Path directory,
             UUID uuid,
@@ -107,7 +112,8 @@ public class DataStoreEntry extends StorageElement {
             boolean freeze,
             boolean pinToTop,
             int orderIndex,
-            UUID breakOutCategory) {
+            UUID breakOutCategory,
+            boolean isShared) {
         super(directory, uuid, name, lastUsed, lastModified, expanded, dirty);
         this.color = color;
         this.categoryUuid = categoryUuid;
@@ -123,6 +129,7 @@ public class DataStoreEntry extends StorageElement {
         this.pinToTop = pinToTop;
         this.orderIndex = orderIndex;
         this.breakOutCategory = breakOutCategory;
+        this.isShared = isShared;
     }
 
     public static DataStoreEntry createTempWrapper(@NonNull DataStore store) {
@@ -147,7 +154,8 @@ public class DataStoreEntry extends StorageElement {
                 false,
                 false,
                 0,
-                null);
+                null,
+                false);
     }
 
     public static DataStoreEntry createNew(@NonNull NameableStore store) {
@@ -191,7 +199,8 @@ public class DataStoreEntry extends StorageElement {
                 false,
                 false,
                 0,
-                null);
+                null,
+                false);
         return entry;
     }
 
@@ -322,7 +331,8 @@ public class DataStoreEntry extends StorageElement {
                 freeze,
                 pinToTop,
                 orderIndex,
-                breakOutCategory));
+                breakOutCategory,
+                false));
     }
 
     public String getEffectiveIconFile() {
@@ -488,6 +498,9 @@ public class DataStoreEntry extends StorageElement {
     }
 
     public void writeDataToDisk() throws Exception {
+        if (isShared) {
+            return;
+        }
         if (!dirty) {
             return;
         }
@@ -747,6 +760,9 @@ public class DataStoreEntry extends StorageElement {
     }
 
     public boolean shouldSave() {
+        if (isShared) {
+            return false;
+        }
         return getStore() != null;
     }
 

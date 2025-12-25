@@ -134,7 +134,7 @@ public interface ExternalApplicationType extends PrefsValue {
                         return true;
                     }
                 }
-                
+
                 String name = getExecutable();
                 return pc.view().findProgram(name).isPresent();
             } catch (Exception e) {
@@ -228,8 +228,7 @@ public interface ExternalApplicationType extends PrefsValue {
         default void launch(CommandBuilder builder) throws Exception {
             var location = findExecutable();
             builder.add(0, sc -> {
-                return sc != null ? sc.getShellDialect().fileArgument(location.toString())
-                        : "\"" + location + "\"";
+                return sc != null ? sc.getShellDialect().fileArgument(location.toString()) : "\"" + location + "\"";
             });
             if (detach()) {
                 ExternalApplicationHelper.startAsync(builder);

@@ -272,9 +272,139 @@ public class StandardStorage extends DataStorage {
 
         deleteLeftovers();
 
+        // Load shared entries if configured
+        loadSharedEntries();
+
         this.dataStorageSyncHandler.afterStorageLoad();
 
         busyIo.unlock();
+    }
+
+    public void reloadSharedEntries() {
+        if (!busyIo.tryLock()) {
+            return;
+        }
+        try {
+            loadSharedEntries();
+            // Trigger UI updates
+            refreshEntries();
+            getStoreEntries().stream().filter(DataStoreEntry::isShared).forEach(entry -> {
+                entry.refreshStore();
+                entry.initializeEntry();
+            });
+        } finally {
+            busyIo.unlock();
+        }
+    }
+
+    private void loadSharedEntries() {
+        var sharedPath = AppProperties.get().getSharedStoragePath();
+        if (sharedPath == null || !Files.exists(sharedPath)) {
+            // Remove any existing shared entries if shared storage is no longer configured
+            var sharedEntries = new ArrayList<>(
+                    getStoreEntries().stream().filter(DataStoreEntry::isShared).toList());
+            sharedEntries.forEach(this::deleteStoreEntry);
+            return;
+        }
+
+        var sharedStoresDir = sharedPath.resolve("stores");
+        var sharedCategoriesDir = sharedPath.resolve("categories");
+        var sharedDataDir = sharedPath.resolve("data");
+
+        if (!Files.exists(sharedStoresDir) || !Files.isDirectory(sharedStoresDir)) {
+            return;
+        }
+
+        // Remove existing shared entries before reloading
+        var existingSharedEntries = new ArrayList<>(
+                getStoreEntries().stream().filter(DataStoreEntry::isShared).toList());
+        existingSharedEntries.forEach(e -> {
+            storeEntries.remove(e);
+            synchronized (identityStoreEntryMapCache) {
+                identityStoreEntryMapCache.remove(e.getStore());
+            }
+            synchronized (storeEntryMapCache) {
+                storeEntryMapCache.remove(e.getStore());
+            }
+        });
+
+        // Load shared categories
+        if (Files.exists(sharedCategoriesDir) && Files.isDirectory(sharedCategoriesDir)) {
+            try (var cats = Files.list(sharedCategoriesDir)) {
+                cats.filter(Files::isDirectory).forEach(path -> {
+                    try {
+                        var c = DataStoreCategory.fromDirectory(path);
+                        if (c.isEmpty()) {
+                            return;
+                        }
+                        // Don't add shared categories to the main category list, they're just for reference
+                    } catch (Exception ex) {
+                        ErrorEventFactory.fromThrowable(ex)
+                                .expected()
+                                .omit()
+                                .build()
+                                .handle();
+                    }
+                });
+            } catch (IOException ex) {
+                ErrorEventFactory.fromThrowable(ex).expected().handle();
+            }
+        }
+
+        // Load shared entries
+        try (var dirs = Files.list(sharedStoresDir)) {
+            dirs.filter(Files::isDirectory).forEach(path -> {
+                try {
+                    var entryOpt = DataStoreEntry.fromDirectory(path);
+                    if (entryOpt.isEmpty()) {
+                        return;
+                    }
+
+                    var entry = entryOpt.get();
+                    // Mark as shared
+                    entry.setShared(true);
+                    // Set directory to point to shared location (read-only)
+                    entry.setDirectory(path);
+                    // Map category to Shared category
+                    var sharedCategory = getSharedConnectionsCategory();
+                    if (sharedCategory.isPresent()) {
+                        entry.setCategoryUuid(SHARED_CONNECTIONS_CATEGORY_UUID);
+                    } else {
+                        // If shared category doesn't exist, use default
+                        entry.setCategoryUuid(DEFAULT_CATEGORY_UUID);
+                    }
+
+                    // Check if entry already exists (by UUID)
+                    var existing = getStoreEntryIfPresent(entry.getUuid());
+                    if (existing.isPresent() && !existing.get().isShared()) {
+                        // Don't overwrite local entries with shared ones
+                        return;
+                    }
+
+                    if (existing.isPresent()) {
+                        // Update existing shared entry
+                        updateEntry(existing.get(), entry);
+                    } else {
+                        // Add new shared entry
+                        storeEntries.put(entry, entry);
+                    }
+                } catch (Exception ex) {
+                    ErrorEventFactory.fromThrowable(ex)
+                            .expected()
+                            .omit()
+                            .build()
+                            .handle();
+                }
+            });
+        } catch (IOException ex) {
+            ErrorEventFactory.fromThrowable(ex).expected().handle();
+        }
+
+        // Refresh shared entries
+        getStoreEntries().stream().filter(DataStoreEntry::isShared).forEach(entry -> {
+            entry.refreshStore();
+            entry.initializeEntry();
+        });
     }
 
     @Override

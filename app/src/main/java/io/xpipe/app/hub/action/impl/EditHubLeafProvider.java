@@ -23,7 +23,7 @@ public class EditHubLeafProvider implements HubLeafProvider<DataStore> {
 
     @Override
     public boolean isApplicable(DataStoreEntryRef<DataStore> o) {
-        return o.get().getProvider().canConfigure();
+        return !o.get().isShared() && o.get().getProvider().canConfigure();
     }
 
     @Override

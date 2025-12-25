@@ -9,13 +9,12 @@ import io.xpipe.app.issue.TrackEvent;
 import io.xpipe.app.platform.ColorHelper;
 import io.xpipe.app.platform.PlatformThread;
 import io.xpipe.app.prefs.AppPrefs;
-
 import io.xpipe.app.util.GlobalTimer;
+
 import javafx.animation.*;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleIntegerProperty;
-import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.ListChangeListener;
 import javafx.css.PseudoClass;
 import javafx.geometry.Pos;
@@ -108,11 +107,14 @@ public class AppMainWindowContentComp extends SimpleComp {
                 loadingTextCounter.set((loadingTextCounter.get() + 1) % 4);
                 return false;
             });
-            var loadingTextAnimated = Bindings.createStringBinding(() -> {
-                return AppMainWindow.getLoadingText().getValue() + " " +
-                        (".".repeat(loadingTextCounter.get() + 1)) +
-                        (" ".repeat(3 - loadingTextCounter.get()));
-            }, AppMainWindow.getLoadingText(), loadingTextCounter);
+            var loadingTextAnimated = Bindings.createStringBinding(
+                    () -> {
+                        return AppMainWindow.getLoadingText().getValue() + " "
+                                + (".".repeat(loadingTextCounter.get() + 1))
+                                + (" ".repeat(3 - loadingTextCounter.get()));
+                    },
+                    AppMainWindow.getLoadingText(),
+                    loadingTextCounter);
             var text = new LabelComp(loadingTextAnimated);
             text.styleClass("loading-text");
             text.apply(struc -> {

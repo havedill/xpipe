@@ -41,6 +41,7 @@ public abstract class DataStorage {
     public static final UUID ALL_MACROS_CATEGORY_UUID = UUID.fromString("f65b769a-cec9-4f30-ad58-95fe68d79c2c");
     public static final UUID LOCAL_IDENTITIES_CATEGORY_UUID = UUID.fromString("e784de4e-abea-4cb8-a839-fc557cd23097");
     public static final UUID SYNCED_IDENTITIES_CATEGORY_UUID = UUID.fromString("69aa5040-28dc-451e-b4ff-1192ce5e1e3c");
+    public static final UUID SHARED_CONNECTIONS_CATEGORY_UUID = UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
     private static DataStorage INSTANCE;
     protected final Path dir;
 
@@ -56,8 +57,8 @@ public abstract class DataStorage {
     private final List<StorageListener> listeners = new CopyOnWriteArrayList<>();
 
     private final Map<DataStoreEntry, DataStoreEntry> storeEntriesInProgress = new ConcurrentHashMap<>();
-    private final Map<DataStore, DataStoreEntry> identityStoreEntryMapCache = new IdentityHashMap<>();
-    private final Map<DataStore, DataStoreEntry> storeEntryMapCache = new HashMap<>();
+    protected final Map<DataStore, DataStoreEntry> identityStoreEntryMapCache = new IdentityHashMap<>();
+    protected final Map<DataStore, DataStoreEntry> storeEntryMapCache = new HashMap<>();
     private final Map<DataStore, DataStore> storeMoveCache = new IdentityHashMap<>();
 
     @Getter
@@ -127,6 +128,10 @@ public abstract class DataStorage {
     @SuppressWarnings("unused")
     public DataStoreCategory getAllMacrosCategory() {
         return getStoreCategoryIfPresent(ALL_MACROS_CATEGORY_UUID).orElseThrow();
+    }
+
+    public Optional<DataStoreCategory> getSharedConnectionsCategory() {
+        return getStoreCategoryIfPresent(SHARED_CONNECTIONS_CATEGORY_UUID);
     }
 
     public void forceRewrite() {
@@ -236,6 +241,19 @@ public abstract class DataStorage {
                     ALL_CONNECTIONS_CATEGORY_UUID,
                     true,
                     DataStoreCategoryConfig.empty()));
+        }
+
+        // Setup Shared category if shared storage is configured
+        if (AppProperties.get().getSharedStoragePath() != null) {
+            var sharedCategory = getStoreCategoryIfPresent(SHARED_CONNECTIONS_CATEGORY_UUID);
+            if (sharedCategory.isEmpty()) {
+                var cat = DataStoreCategory.createNew(
+                        ALL_CONNECTIONS_CATEGORY_UUID, SHARED_CONNECTIONS_CATEGORY_UUID, "Shared");
+                cat.setDirectory(categoriesDir.resolve(SHARED_CONNECTIONS_CATEGORY_UUID.toString()));
+                storeCategories.add(cat);
+            } else {
+                sharedCategory.get().setParentCategory(ALL_CONNECTIONS_CATEGORY_UUID);
+            }
         }
 
         storeCategories.forEach(dataStoreCategory -> {
